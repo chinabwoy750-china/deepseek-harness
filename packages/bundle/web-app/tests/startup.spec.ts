@@ -139,11 +139,41 @@ describe('web command-line provider', () => {
     expect(observed.exits).toEqual([1])
   })
 
-  it('rejects the intentionally unsupported all-interfaces host before the consumer activates', async () => {
-    const { values, observed } = await bootProvider(['--host', '0.0.0.0'])
-    expect(observed.out).toContain('--host 0.0.0.0 is intentionally not supported yet for safety: it would expose remote code execution to the network; use 127.0.0.1 instead')
-    expect(values).toBeUndefined()
-    expect(observed.readerConfig).toBeUndefined()
-    expect(observed.exits).toEqual([1])
+  it('rejects the all-interfaces host outside Render', async () => {
+    const previousRender = process.env.RENDER
+    delete process.env.RENDER
+    try {
+      const { values, observed } = await bootProvider(['--host', '0.0.0.0'])
+      expect(observed.out).toContain('--host 0.0.0.0 is intentionally restricted to supported deployment environments')
+      expect(values).toBeUndefined()
+      expect(observed.readerConfig).toBeUndefined()
+      expect(observed.exits).toEqual([1])
+    } finally {
+      if (previousRender === undefined) delete process.env.RENDER
+      else process.env.RENDER = previousRender
+    }
+  })
+
+  it('allows the Render all-interfaces host and trusts Render external hostname', async () => {
+    const previousRender = process.env.RENDER
+    const previousHostname = process.env.RENDER_EXTERNAL_HOSTNAME
+    process.env.RENDER = 'true'
+    process.env.RENDER_EXTERNAL_HOSTNAME = 'deepseek-harness.onrender.com'
+    try {
+      const { values, observed } = await bootProvider(['--host', '0.0.0.0', '--port', '10000', '--no-open'])
+      expect(values).toEqual({
+        host: '0.0.0.0',
+        openBrowser: false,
+        port: 10000,
+        trustedHosts: ['deepseek-harness.onrender.com'],
+      })
+      expect(observed.readerConfig).toEqual(values)
+      expect(observed.exits).toEqual([])
+    } finally {
+      if (previousRender === undefined) delete process.env.RENDER
+      else process.env.RENDER = previousRender
+      if (previousHostname === undefined) delete process.env.RENDER_EXTERNAL_HOSTNAME
+      else process.env.RENDER_EXTERNAL_HOSTNAME = previousHostname
+    }
   })
 })

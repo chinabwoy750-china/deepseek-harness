@@ -62,26 +62,31 @@ Examples:
 
 /**
  * Parse and provide the Web invocation as an ordinary Cordis service. The
- * command's action publishes the flags this invocation named; `--host 0.0.0.0`
- * or a non-numeric `--port` is a usage error, so on rejection (and on `--help`)
- * nothing is provided.
+ * command's action publishes the flags this invocation named; non-numeric `--port`
+ * is a usage error. The all-interfaces host is permitted only when Render sets
+ * `RENDER=true`; local launches retain the loopback-only safety posture.
  * @param ctx - plugin context carrying the command line.
  */
 export function apply(ctx: Context): void {
   const program = webCommand()
   program.action(() => {
     const options = program.opts<WebOptions>()
-    if (options.host === '0.0.0.0') {
-      program.error('error: --host 0.0.0.0 is intentionally not supported yet for safety: it would expose remote code execution to the network; use 127.0.0.1 instead')
+    const renderDeployment = process.env.RENDER === 'true'
+    if (options.host === '0.0.0.0' && !renderDeployment) {
+      program.error('error: --host 0.0.0.0 is intentionally restricted to supported deployment environments; use 127.0.0.1 for local runs')
     }
     if (options.port !== undefined && !/^\d+$/.test(options.port)) {
       program.error(`error: --port must be a number, got ${JSON.stringify(options.port)}`)
     }
+    const trustedHosts = options.trustedHost ?? []
+    const renderHost = renderDeployment ? process.env.RENDER_EXTERNAL_HOSTNAME?.trim() : undefined
     ctx.provide(WEB_STARTUP_SERVICE, {
       openBrowser: options.open,
       ...options.host !== undefined && { host: options.host },
       ...options.port !== undefined && { port: Number(options.port) },
-      trustedHosts: options.trustedHost ?? [],
+      trustedHosts: renderHost && !trustedHosts.includes(renderHost)
+        ? [...trustedHosts, renderHost]
+        : trustedHosts,
     } satisfies WebStartupValues)
   })
   parseCmdline(ctx, program)

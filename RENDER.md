@@ -1,36 +1,43 @@
-# DeepSeek Harness on Render
+# Render deployment
 
-This repository includes a Render Blueprint and a deployment overlay for the
-DeepSeek Harness Web UI.
+This checkout includes a small Render-specific adaptation for the Web runner.
 
-## Deploy
+## Why the source was changed
 
-1. Push this repository to GitHub.
-2. In Render, choose **New -> Blueprint** and select the repository.
-3. Render reads `render.yaml` and creates the `deepseek-harness` Web Service.
-4. When prompted for `DEEPSEEK_API_KEY`, enter your DeepSeek API key.
-5. Deploy.
+Render web services require the HTTP server to listen on `0.0.0.0` and on the
+port in `$PORT`. The upstream `dsh web` CLI intentionally rejects `0.0.0.0`
+for local safety, so this checkout permits that bind only when Render's
+`RENDER=true` runtime variable is present. Local runs remain loopback-only.
 
-The service uses the Render Free plan. Render supplies `PORT` at runtime; the
-`render.patch.yml` overlay binds the Harness web server to `0.0.0.0` and uses
-that port. The normal DSH CLI safety check for `--host 0.0.0.0` remains intact
-because the deployment does not pass that CLI flag.
+When running on Render, the Web bundle also automatically adds
+`RENDER_EXTERNAL_HOSTNAME` to its trusted-host list, preserving the browser
+Host/Origin trust boundary for the public Render hostname.
 
-## Manual Render settings
+Render documents the `0.0.0.0` + `$PORT` requirement and provides
+`RENDER_EXTERNAL_HOSTNAME` to web services.
 
-If creating the service manually instead of using the Blueprint:
+## Render settings
 
-- Runtime: Node
-- Plan: Free
-- Build command: `corepack enable && pnpm install --frozen-lockfile && pnpm run build`
-- Start command: `pnpm dsh --profile web --no-open --patch ./render.patch.yml`
-- Environment: `NODE_ENV=production`
-- Secret: `DEEPSEEK_API_KEY=<your key>`
+**Build Command**
 
-Do not commit API keys to Git.
+```text
+pnpm install --frozen-lockfile --ignore-scripts && pnpm run build
+```
 
-## Free-tier limitations
+**Start Command**
 
-Render Free web services have limited CPU/RAM and can spin down after idle
-periods. The filesystem is ephemeral, so local sessions/files are not durable
-across restarts or redeploys.
+```text
+pnpm dsh web --host 0.0.0.0 --port $PORT --no-open
+```
+
+**Plan**: Free
+
+No provider/API key is hardcoded by this deployment configuration. Configure
+the provider credentials supported by your Harness setup as Render environment
+variables/secrets.
+
+## Security note
+
+The Render exception is deliberately narrow: `0.0.0.0` is accepted only when
+`RENDER=true`. Do not use this change as a reason to expose a local Harness
+instance directly to the LAN or Internet.

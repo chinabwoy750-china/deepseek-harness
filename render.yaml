@@ -3,10 +3,8 @@ services:
     name: deepseek-harness
     runtime: node
     plan: free
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm run build
-    startCommand: pnpm dsh --patch ./render.patch.yml --profile web --no-open
+    buildCommand: pnpm install --frozen-lockfile --ignore-scripts && pnpm run build
+    startCommand: pnpm dsh web --host 0.0.0.0 --port $PORT --no-open
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DEEPSEEK_API_KEY
-        sync: false
